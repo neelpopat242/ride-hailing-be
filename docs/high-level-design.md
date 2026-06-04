@@ -29,8 +29,6 @@
 | Latency | Driver-rider match < 1s p95; location poll served from cache |
 | Scalability | Stateless API — horizontal scaling behind a load balancer |
 | Fault tolerance | DB transaction rollback on failure; cache TTL as safety net |
-| Observability | New Relic APM for request latency, DB query timing, slow query traces. Alerts on p95 breach, elevated 5xx rate, DB saturation |
-| Security | JWT on all protected routes; `extra="forbid"` on all Pydantic schemas; rate limiting on ride creation and payment endpoints (pending) |
 
 ---
 
@@ -116,97 +114,17 @@ REQUESTED → ASSIGNED → ACCEPTED → IN_PROGRESS → COMPLETED
 
 ---
 
-## 8. Problems in Current Approach
+## 8. Future Improvements
 
-### 8.1 Synchronous Dispatch — Single Point of Latency
-**Problem:** The entire dispatch flow (find candidates, sort by Haversine, create candidates, assign first) runs inside the ride creation request. If the DB is slow or there are many available drivers, the rider waits.
-**Impact:** p95 ride creation latency increases linearly with driver count.
+### 8.1 Async Dispatch with Background Workers
+Move dispatch logic to a Celery/RQ background task. Ride creation returns immediately while the worker handles driver matching and the 10s offer countdown. `DispatchService` is already isolated as a separate class — wrapping it as a task requires no logic change. This also eliminates the lazy timeout approach by letting the worker actively schedule re-dispatch on expiry.
 
-### 8.2 Lazy Timeout — Silent Staleness
-**Problem:** Offer expiry is only checked when someone interacts with the ride (GET, accept, decline). If no one polls a ride for 2 minutes, a timed-out offer just sits there — the next driver never gets notified.
-**Impact:** Driver sees stale "offer waiting" in their app. The rider sees "assigned" but nothing happens.
+### 8.2 Region-Based Driver Filtering
+Add a `region` column on `Driver` and filter by region before ranking by distance. This reduces the candidate search from a global scan to a region-scoped query. Region can be derived from geohash prefix or predefined zones (airport, city-center, etc.).
 
-### 8.3 Global Driver Scan — O(n) on Every Ride
-**Problem:** `find_available_candidates()` fetches all available drivers with location, then sorts in Python by Haversine. No spatial index, no region filter.
-**Impact:** At 50,000 drivers this becomes a full table scan + in-memory sort per ride request.
+### 8.3 WebSocket for Live Updates
+Replace client polling with persistent WebSocket connections. When ride state changes or driver location updates, push the event immediately via Redis pub/sub. This reduces unnecessary requests and gives riders real-time tracking instead of 5s intervals.
 
-### 8.4 No Real Payment Processing
-**Problem:** Payment creates a success record with a fake PSP reference. No real gateway call, no retry, no failure handling.
-**Impact:** Fine for assignment scope, but production needs circuit breaker around PSP calls and async retry on failure.
-
-### 8.5 Polling Overhead
-**Problem:** Every active rider polls ride status every 5 seconds. At 10,000 riders, that's 2,000 req/s even when nothing has changed.
-**Impact:** Wasted compute. Most polls return the same cached response.
-
-### 8.6 No Surge Pricing
-**Problem:** Fare is always `base + per_km * distance`. No demand-supply multiplier.
-**Impact:** In high-demand periods, there's no incentive for more drivers to come online.
-
-### 8.7 No Rate Limiting
-**Problem:** Any authenticated user can hit any endpoint at any rate.
-**Impact:** A single bad client can exhaust server resources.
-
----
-
-## 9. Improvements — Prioritized
-
-### 9.1 Async Dispatch with Celery/RQ (highest priority)
-Replace synchronous dispatch with a background task. `create_ride` enqueues a `dispatch_offer` task and returns immediately. The worker handles the 10s countdown and auto-advances to the next candidate on timeout. `DispatchService` is already isolated — wrapping it as a task requires zero logic change.
-
-**Solves:** 8.1 (latency), 8.2 (lazy timeout)
-
-### 9.2 Region-Based Driver Filtering
-Add an indexed `region` column on `Driver`. Filter by region first, then rank by Haversine distance. Turns O(n drivers) into O(drivers in region). Region can be a geohash prefix or a city/zone enum.
-
-**Solves:** 8.3 (global scan)
-
-### 9.3 WebSocket / SSE for Live Updates
-Replace polling with a persistent connection. When ride state changes or driver location updates, push the event immediately. Use Redis pub/sub as the transport between API servers.
-
-**Solves:** 8.5 (polling overhead)
-
-### 9.4 Observer Pattern — Event-Driven Side Effects
-`EventBus.emit("ride.assigned", ride)` in service layer. Observers handle push notifications, WebSocket updates, email receipts independently. Services have zero knowledge of delivery channels.
-
-**Solves:** Decouples business logic from notification/delivery concerns.
-
-### 9.5 Strategy Pattern — Dynamic Pricing
-`FareStrategy` interface with pluggable implementations (`StandardFareStrategy`, `SurgeFareStrategy`). Inject based on current demand-supply ratio. Implement when ≥ 2 pricing models are defined.
-
-**Solves:** 8.6 (surge pricing)
-
-### 9.6 Rate Limiting
-Redis-backed sliding window rate limiter on ride creation (5/min per rider) and payment endpoints. Can use Flask-Limiter or a custom middleware.
-
-**Solves:** 8.7 (no rate limiting)
-
-### 9.7 Circuit Breaker — PSP Resilience
-Wrap PSP HTTP calls in a circuit breaker (`pybreaker`). On consecutive failures, open the circuit and return a fast error instead of cascading timeouts. Implement when real PSP integration is added.
-
-**Solves:** 8.4 (payment resilience)
-
----
-
-## 10. Implementation Phases
-
-### Phase 1 — Core (complete)
-- Postgres models, repositories, session management
-- All required APIs with Pydantic validation
-- FSM-enforced state transitions (including `start_trip` → IN_PROGRESS)
-- Dispatch with 10s timeout and candidate queue
-- Redis caching for ride status and driver location
-- Email-based onboarding for riders and drivers
-- Haversine-based nearest driver selection
-
-### Phase 2 — Reliability and Observability (next)
-- Async dispatch queue (Celery/RQ) — remove lazy timeout
-- Observer pattern + WebSocket notifications
-- New Relic APM instrumentation
-- Rate limiting on ride creation and payment endpoints
-
-### Phase 3 — Scale and Hardening
-- Region-based driver filtering — remove global scan
-- Surge pricing via Strategy pattern
-- Circuit breaker around real PSP integration
-- Load testing and index tuning
+### 8.4 Dynamic Pricing via Strategy Pattern
+Introduce a `FareStrategy` interface with pluggable implementations (standard, surge, flat-rate). The active strategy is selected based on real-time supply-demand ratio per region. The current fare calculation module is already isolated, so swapping in a strategy requires minimal change.
 
