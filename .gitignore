@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 notes/
 .idea/
+tests/
