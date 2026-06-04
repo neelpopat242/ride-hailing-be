@@ -1,0 +1,196 @@
+{
+  "info": {
+    "name": "GoComet Ride Hailing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "rider_token", "value": "" },
+    { "key": "driver_token", "value": "" },
+    { "key": "ride_id", "value": "" },
+    { "key": "trip_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Rider — Onboard",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/auth/rider",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@example.com\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Driver — Onboard",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/auth/driver",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"driver1@example.com\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rides",
+      "item": [
+        {
+          "name": "Create Ride",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/rides",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{rider_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pickup_lat\": 12.9352,\n  \"pickup_lng\": 77.6245,\n  \"dest_lat\": 12.9716,\n  \"dest_lng\": 77.5946,\n  \"payment_method\": \"cash\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Ride Status",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/rides/{{ride_id}}",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{rider_token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Get Driver Location",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/rides/{{ride_id}}/location",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{rider_token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Drivers",
+      "item": [
+        {
+          "name": "Update Location",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/drivers/location",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{driver_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lat\": 12.9360,\n  \"lng\": 77.6250\n}"
+            }
+          }
+        },
+        {
+          "name": "Accept Ride",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/drivers/accept",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{driver_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ride_id\": \"{{ride_id}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Decline Ride",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/drivers/decline",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{driver_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ride_id\": \"{{ride_id}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Trips",
+      "item": [
+        {
+          "name": "Start Trip",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/trips/{{trip_id}}/start",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{driver_token}}" }
+            ]
+          }
+        },
+        {
+          "name": "End Trip",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/trips/{{trip_id}}/end",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{driver_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"distance_km\": 5.4\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Create Payment",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/payments",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{rider_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ride_id\": \"{{ride_id}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health"
+          }
+        }
+      ]
+    }
+  ]
+}
