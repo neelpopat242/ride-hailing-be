@@ -68,21 +68,7 @@ Two uses: ride status cache (5s TTL, reduces Postgres read load) and driver loca
 
 ---
 
-## 5. Core Component Design
-
-| Component | Responsibility |
-|---|---|
-| ViewSet + `@route` | HTTP routing, JWT auth, request validation — DRF-style for Flask |
-| Service layer | Business logic, orchestrates repos and state machine |
-| Repository | All DB access isolated per table |
-| DispatchService | Offer dispatch and timeout logic, decoupled from ride and driver services |
-| FSM | `RideStateMachine`, `DriverStateMachine` — illegal transitions raise 409 before any DB write |
-| JWTAuth | Single token — `user_id` + `role` claims, validated per request |
-| Cache utils | `get_ride`, `set_ride`, `invalidate_ride`, `get_location`, `set_location` |
-
----
-
-## 6. Key Design Decisions
+## 5. Key Design Decisions
 
 **Single JWT for riders and drivers**
 One token system with `role` claim. Route-level auth checks the role. No separate auth service needed at this scale.
@@ -98,7 +84,7 @@ No password, no OTP. Email is the unique identifier — if it exists, return a J
 
 ---
 
-## 7. Ride Lifecycle
+## 6. Ride Lifecycle
 
 ```
 REQUESTED → ASSIGNED → ACCEPTED → IN_PROGRESS → COMPLETED
@@ -114,7 +100,7 @@ REQUESTED → ASSIGNED → ACCEPTED → IN_PROGRESS → COMPLETED
 
 ---
 
-## 8. Future Improvements
+## 7. Future Improvements
 
 ### 8.1 Async Dispatch with Background Workers
 Move dispatch logic to a Celery/RQ background task. Ride creation returns immediately while the worker handles driver matching and the 10s offer countdown. `DispatchService` is already isolated as a separate class — wrapping it as a task requires no logic change. This also eliminates the lazy timeout approach by letting the worker actively schedule re-dispatch on expiry.
