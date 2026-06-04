@@ -2,6 +2,5 @@
 .venv 2/
 __pycache__/
 *.pyc
-.env
 notes/
 .idea/
