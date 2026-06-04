@@ -90,19 +90,9 @@ The dispatch design prevents concurrent accept conflicts by construction: only o
 
 ---
 
-## 6. Design Patterns
+## 6. Future Design Patterns
 
-### Current
-| Pattern | Implementation |
-|---|---|
-| Repository | DB access isolated per table — `RideRepository`, `DriverRepository`, `UserRepository`, etc. |
-| Service layer | Business logic decoupled from HTTP — `RideService`, `DriverService`, `DispatchService` |
-| FSM | Explicit transition maps, raises `APIException(409)` on illegal moves |
-| Dependency Injection | Session injected into services via `__init__` — no global state |
-| ViewSet + `@route` decorator | DRF-style routing — `register()` collects `@route` methods and wires them onto a Flask blueprint |
-
-### Future
-| Pattern | Use case | Trigger to implement |
+| Pattern | Use case | When to add |
 |---|---|---|
 | Observer | Ride event notifications (push, WebSocket, email) | When frontend live updates are required |
 | Strategy | Pluggable fare calculation — standard, surge, flat-rate | When ≥ 2 pricing models are defined |
